@@ -1,0 +1,27 @@
+{
+  "manifest_version": 3,
+  "name": "Keyword Scorer",
+  "version": "1.0",
+  "description": "A Chrome extension to score keywords on web pages.",
+  "permissions": ["activeTab", "storage", "scripting", "notifications"],
+  "host_permissions": ["https://www.linkedin.com/*", "https://linkedin.com/*", "<all_urls>"],
+  "action": {
+    "default_popup": "popup.html",
+    "default_icon": "icon.png"
+  },
+  "background": {
+    "service_worker": "background.js"
+  },
+  "options_page": "options.html",
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["content-script.js"],
+      "run_at": "document_idle"
+    }
+  ],
+  "icons": {
+    "48": "icon.png",
+    "128": "icon.png"
+  }
+}

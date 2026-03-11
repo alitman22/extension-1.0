@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Job Match Radar Settings</title>
+  <link rel="stylesheet" href="options.css">
+</head>
+<body>
+  <main class="shell">
+    <header class="hero">
+      <p class="eyebrow">Job Match Radar</p>
+      <h1>Settings and Keyword Bank</h1>
+      <p class="hero-copy">This page is organized by section. Expand only what you need, make changes, then collapse it again to stay focused.</p>
+    </header>
+
+    <section class="card guide-top">
+      <h2>Start Here Guide</h2>
+      <div class="guide-grid">
+        <div>
+          <h3>Use Popup For</h3>
+          <ul class="usage-list">
+            <li>Rescan current page and LLM suggestion actions.</li>
+            <li>Quick edits while browsing job pages.</li>
+          </ul>
+        </div>
+        <div>
+          <h3>Use Settings For</h3>
+          <ul class="usage-list">
+            <li>Display rules, active URLs, and grading thresholds.</li>
+            <li>Provider setup, keyword architecture, phrase bank, and backups.</li>
+          </ul>
+        </div>
+        <div>
+          <h3>Recommended Order</h3>
+          <ul class="usage-list">
+            <li>1) Display and Alerts</li>
+            <li>2) LLM Provider</li>
+            <li>3) Keyword Groups + Important Phrases</li>
+            <li>4) Insights, Compare, and Backup</li>
+          </ul>
+        </div>
+      </div>
+      <div id="save-status" class="save-status">Changes are stored locally in Chrome sync storage.</div>
+    </section>
+
+    <section class="accordion">
+      <details class="settings-section">
+        <summary>
+          <span class="summary-title">Display and Alerts</span>
+          <span class="summary-copy">Badge mode, alert threshold, active URL patterns, and grade limits.</span>
+        </summary>
+        <div class="section-body">
+          <div class="field-row">
+            <label for="badge-mode" class="label-with-tip">Icon badge mode<span class="tooltip-help" tabindex="0" data-tip="Choose whether the extension icon shows the raw score, grade, or stays quiet.">?</span></label>
+            <select id="badge-mode">
+              <option value="score">Score</option>
+              <option value="grade">Grade</option>
+              <option value="off">Off</option>
+            </select>
+          </div>
+          <div class="field-row">
+            <label for="alert-threshold" class="label-with-tip">Alert threshold<span class="tooltip-help" tabindex="0" data-tip="Jobs scoring at or above this value can trigger highlight and notification behavior.">?</span></label>
+            <input type="number" id="alert-threshold" min="1" step="1">
+          </div>
+          <div class="field-row checkbox-row">
+            <input type="checkbox" id="show-bar">
+            <label for="show-bar" class="label-with-tip">Show analytics bar<span class="tooltip-help" tabindex="0" data-tip="When enabled, the extension adds a fixed insight bar on allowed pages. Disable it if you only want popup-based scoring.">?</span></label>
+          </div>
+          <div class="field-row field-row-stack">
+            <label for="active-url-patterns" class="label-with-tip">Active URL patterns<span class="tooltip-help" tabindex="0" data-tip="One pattern per line. Use * as wildcard. Example: https://www.linkedin.com/jobs/* or https://careers.example.com/*. The extension only runs where a pattern matches.">?</span></label>
+            <textarea id="active-url-patterns" class="compact-textarea" placeholder="https://www.linkedin.com/jobs/*&#10;https://linkedin.com/jobs/*"></textarea>
+          </div>
+          <div class="field-row triple thresholds-row">
+            <div>
+              <label for="grade-a" class="compact-label">Grade A from</label>
+              <input type="number" id="grade-a" min="1" step="1">
+            </div>
+            <div>
+              <label for="grade-b" class="compact-label">Grade B from</label>
+              <input type="number" id="grade-b" min="1" step="1">
+            </div>
+            <div>
+              <label for="grade-c" class="compact-label">Grade C from</label>
+              <input type="number" id="grade-c" min="1" step="1">
+            </div>
+          </div>
+          <div class="actions">
+            <button id="save-display-settings">Save display settings</button>
+          </div>
+        </div>
+      </details>
+
+      <details class="settings-section">
+        <summary>
+          <span class="summary-title">LLM Provider</span>
+          <span class="summary-copy">Provider, model, endpoint, and credential setup.</span>
+        </summary>
+        <div class="section-body">
+          <p class="hint">Setup is managed here. Suggestions are triggered from the popup.</p>
+          <div class="field-row">
+            <label for="llm-provider" class="label-with-tip">Provider<span class="tooltip-help" tabindex="0" data-tip="Pick the provider first. This page will prefill the expected endpoint style and a compatible model list.">?</span></label>
+            <select id="llm-provider">
+              <option value="github">GitHub Models</option>
+              <option value="gemini">Google Gemini</option>
+              <option value="openai-compatible">OpenAI-compatible Custom</option>
+            </select>
+          </div>
+          <div class="field-row">
+            <label for="llm-model-preset" class="label-with-tip">Suggested model<span class="tooltip-help" tabindex="0" data-tip="Starter models that work well for keyword extraction. You can still override the final model ID below.">?</span></label>
+            <select id="llm-model-preset"></select>
+          </div>
+          <div id="llm-help" class="microcopy"></div>
+          <div class="field-row">
+            <label for="llm-endpoint" class="label-with-tip">Endpoint<span class="tooltip-help" tabindex="0" data-tip="GitHub uses a chat completions endpoint. Gemini uses a base models URL and the extension appends /{model}:generateContent automatically.">?</span></label>
+            <input type="text" id="llm-endpoint" placeholder="Provider endpoint or base URL">
+          </div>
+          <div class="field-row">
+            <label for="llm-api-key" class="label-with-tip">Credential<span class="tooltip-help" tabindex="0" data-tip="Store your API key or GitHub PAT here. If suggestions fail, check the key, endpoint, and model access first.">?</span></label>
+            <input type="password" id="llm-api-key" placeholder="API key or GitHub PAT">
+          </div>
+          <div class="field-row">
+            <label for="llm-model" class="label-with-tip">Model ID<span class="tooltip-help" tabindex="0" data-tip="The actual model sent in requests. This can match the suggested model or a compatible custom one from your provider.">?</span></label>
+            <input type="text" id="llm-model" placeholder="Model name">
+          </div>
+          <div class="actions">
+            <button id="save-llm-settings">Save LLM settings</button>
+          </div>
+        </div>
+      </details>
+
+      <details class="settings-section">
+        <summary>
+          <span class="summary-title">Keyword Groups</span>
+          <span class="summary-copy">Create groups, assign weights, and import keyword lists.</span>
+        </summary>
+        <div class="section-body">
+          <div class="field-row double">
+            <input type="text" id="group-input" placeholder="Group name, e.g. Cloud & Platform">
+            <input type="number" id="group-weight-input" placeholder="Group weight" step="0.1" value="1">
+          </div>
+          <div class="field-row double keyword-builder-row">
+            <textarea id="keyword-input" placeholder="Keywords separated by comma, new line, semicolon, or pipe"></textarea>
+            <div class="stack-actions">
+              <input type="number" id="keyword-weight-input" placeholder="Keyword weight" step="0.1" value="1">
+              <button id="add-keyword">Add / Update Keyword(s)</button>
+              <input type="file" id="import-keywords-file" accept=".txt,.csv,.json">
+            </div>
+          </div>
+          <div id="scan-tech-output" class="hint-box"></div>
+          <ul id="groups-list"></ul>
+        </div>
+      </details>
+
+      <details class="settings-section">
+        <summary>
+          <span class="summary-title">Important Phrases</span>
+          <span class="summary-copy">Tune visa, relocation, remote, and other phrase signals.</span>
+        </summary>
+        <div class="section-body">
+          <div class="field-row double">
+            <input type="text" id="phrase-input" placeholder="Phrase, e.g. visa sponsorship">
+            <input type="text" id="phrase-category-input" placeholder="Category, e.g. visa">
+          </div>
+          <div class="field-row double">
+            <input type="number" id="phrase-weight-input" placeholder="Phrase weight" step="0.1" value="3">
+            <button id="add-phrase">Add / Update Phrase</button>
+          </div>
+          <ul id="phrases-list"></ul>
+        </div>
+      </details>
+
+      <details class="settings-section">
+        <summary>
+          <span class="summary-title">Backup and Restore</span>
+          <span class="summary-copy">Export or import your full extension configuration.</span>
+        </summary>
+        <div class="section-body">
+          <div class="actions wrap">
+            <button id="export-json">Export JSON</button>
+            <button id="restore-json">Restore from File</button>
+            <button id="reset-all" class="danger-button">Reset All</button>
+            <input type="file" id="import-json" class="hidden-file-input" accept="application/json">
+          </div>
+        </div>
+      </details>
+    </section>
+  </main>
+  <script src="options.js"></script>
+</body>
+</html>

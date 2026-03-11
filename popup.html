@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Keyword Scorer</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div id="app">
+    <h1>Job Match Radar</h1>
+    <p class="subtitle">Quick actions for the current job page. For provider setup, phrase tuning, backup, and deeper controls, open the settings page.</p>
+
+    <section class="panel">
+      <h2>Quick Keyword Edit</h2>
+      <div class="row">
+        <input type="text" id="group-input" placeholder="Group name (e.g. Backend)">
+        <input type="number" id="group-weight-input" placeholder="Group weight" step="0.1" value="1">
+      </div>
+      <div class="row">
+        <input type="text" id="keyword-input" placeholder="Keywords (comma/new line supported)">
+        <input type="number" id="keyword-weight-input" placeholder="Keyword weight" step="0.1" value="1">
+      </div>
+      <div class="actions">
+        <button id="add-keyword">Add / Update</button>
+        <button id="scan-tech-page">Scan Page Terms</button>
+      </div>
+      <div id="scan-tech-output" class="hint-box"></div>
+      <ul id="groups-list"></ul>
+    </section>
+
+    <section class="panel">
+      <h2>Page Actions</h2>
+      <div class="actions">
+        <button id="rescore" class="btn-action">Rescan Current Page</button>
+        <button id="llm-suggest" class="btn-action">Suggest Keywords (LLM)</button>
+      </div>
+      <div id="action-output" class="hint-box"></div>
+    </section>
+
+    <section class="panel">
+      <h2>Quick Thresholds & Display</h2>
+      <div class="row">
+        <label for="alert-threshold">Alert Threshold</label>
+        <input type="number" id="alert-threshold" min="1" step="1" value="80">
+      </div>
+      <div class="row">
+        <label for="grade-a">Grade A from</label>
+        <input type="number" id="grade-a" step="1" value="120">
+      </div>
+      <div class="row">
+        <label for="grade-b">Grade B from</label>
+        <input type="number" id="grade-b" step="1" value="80">
+      </div>
+      <div class="row">
+        <label for="grade-c">Grade C from</label>
+        <input type="number" id="grade-c" step="1" value="45">
+      </div>
+      <div class="row">
+        <label for="badge-mode">Badge Display</label>
+        <select id="badge-mode">
+          <option value="score">Score</option>
+          <option value="grade">Grade</option>
+          <option value="off">Off</option>
+        </select>
+      </div>
+      <div class="row checkbox-row">
+        <input type="checkbox" id="show-bar">
+        <label for="show-bar">Show Analytics Bar</label>
+      </div>
+      <div class="actions">
+        <button id="save-settings">Save Quick Settings</button>
+      </div>
+    </section>
+
+    <section class="panel">
+      <h2>Current Snapshot</h2>
+      <div id="score-cards" class="score-cards"></div>
+    </section>
+
+    <section class="panel">
+      <h2>Need More Controls?</h2>
+      <p class="hint-inline">LLM provider setup, phrase tuning, import/export, grade thresholds, and deeper keyword management are available on the settings page.</p>
+      <div class="actions">
+        <button id="open-settings">Open Full Settings</button>
+      </div>
+    </section>
+  </div>
+  <script src="popup.js"></script>
+</body>
+</html>
