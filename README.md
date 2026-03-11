@@ -4,6 +4,38 @@ Open-source Chrome Extension (Manifest V3) for measuring how relevant a page is 
 
 It started as a job-search assistant, but the scoring engine is generic enough for any "is this content relevant to my criteria?" workflow.
 
+## 🌱 How This Idea Started
+
+I always wanted a browser tool that could quickly evaluate the page in front of me based on the keywords I care about.
+
+At first, I built it for job hunting:
+
+- 🔎 Scan job descriptions fast
+- 🎯 Focus only on high-relevance roles
+- ⏱️ Save time for deeper reading where it actually matters
+
+Then it became part of my personal automation workflow:
+
+- 🤖 While I was studying or busy in the lab, my automation flow browsed jobs and collected high-score pages
+- 🗂️ It built a shortlist for me to review later
+- 🚀 It helped me apply more efficiently and with less noise
+
+This project is not perfect yet, and that is exactly why it is open source.
+
+- 🛠️ If you want to contribute, your improvements are welcome
+- 💡 If you do not want to contribute code, ideas are still highly appreciated
+- 🐞 If you find bugs or errors, please open an issue so I can fix them
+
+I may publish the full job-automation stack in a separate repository later.
+
+This extension is shared for people like me who are trying to find their dream role more efficiently. Have fun, make it yours, and improve it for the next person.
+
+### 📬 Contact
+
+If you have ideas, feedback, or bug reports, feel free to reach out:
+
+- Email: `alit.fattahi@gmail.com`
+
 ## Open-Source Status
 
 - License: MIT (`LICENSE`)
