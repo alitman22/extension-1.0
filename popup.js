@@ -251,6 +251,7 @@ document.addEventListener("DOMContentLoaded", () => {
     });
 
     ui.scanTechPage.addEventListener("click", () => {
+      ui.scanTechOutput.textContent = "Scanning page for IT terms...";
       chrome.runtime.sendMessage({ action: "scanTechKeywordsFromActiveTab" }, (response) => {
         if (!response || !response.ok) {
           ui.scanTechOutput.textContent = (response && response.error) || "Could not scan current page.";
@@ -267,6 +268,8 @@ document.addEventListener("DOMContentLoaded", () => {
     });
 
     ui.rescore.addEventListener("click", () => {
+      ui.actionOutput.textContent = "Rescanning...";
+      ui.actionOutput.classList.remove("hidden");
       chrome.runtime.sendMessage({ action: "rescoreActiveTab" }, (response) => {
         ui.actionOutput.textContent = (response && response.ok)
           ? "Rescan triggered."
@@ -276,6 +279,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
     ui.llmSuggest.addEventListener("click", () => {
       ui.actionOutput.textContent = "Fetching LLM suggestions...";
+      ui.actionOutput.classList.remove("hidden");
       chrome.runtime.sendMessage({ action: "llmSuggestKeywords" }, (response) => {
         if (!response || !response.ok) {
           ui.actionOutput.textContent = (response && response.error) || "LLM suggestion failed. Check settings.";
