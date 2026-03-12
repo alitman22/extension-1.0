@@ -154,6 +154,26 @@
 
       <details class="settings-section">
         <summary>
+          <span class="summary-title">Resume Match (LLM, Optional)</span>
+          <span class="summary-copy">Upload resume, evaluate current job match %, and generate keywords from resume.</span>
+        </summary>
+        <div class="section-body">
+          <p class="hint">This is manual by design. Use it only when you choose to do deeper evaluation. Without LLM, you can still manage groups and keywords manually.</p>
+          <div class="actions wrap">
+            <button id="choose-resume">Choose Resume (PDF)</button>
+            <span id="resume-file-name" class="microcopy">No resume selected.</span>
+            <input type="file" id="resume-file-input" class="hidden-file-input" accept=".pdf,.txt,.md,.rtf">
+          </div>
+          <div class="actions wrap">
+            <button id="evaluate-resume-match">Evaluate Current Job Match (%)</button>
+            <button id="build-resume-keywords">Generate Keywords from Resume</button>
+          </div>
+          <div id="resume-llm-output" class="hint-box"></div>
+        </div>
+      </details>
+
+      <details class="settings-section">
+        <summary>
           <span class="summary-title">Important Phrases</span>
           <span class="summary-copy">Tune visa, relocation, remote, and other phrase signals.</span>
         </summary>

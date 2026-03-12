@@ -51,6 +51,12 @@ document.addEventListener("DOMContentLoaded", () => {
     llmApiKey: document.getElementById("llm-api-key"),
     llmModel: document.getElementById("llm-model"),
     saveLlmSettings: document.getElementById("save-llm-settings"),
+    chooseResume: document.getElementById("choose-resume"),
+    resumeFileInput: document.getElementById("resume-file-input"),
+    resumeFileName: document.getElementById("resume-file-name"),
+    evaluateResumeMatch: document.getElementById("evaluate-resume-match"),
+    buildResumeKeywords: document.getElementById("build-resume-keywords"),
+    resumeLlmOutput: document.getElementById("resume-llm-output"),
     groupInput: document.getElementById("group-input"),
     groupWeightInput: document.getElementById("group-weight-input"),
     keywordInput: document.getElementById("keyword-input"),
@@ -79,10 +85,13 @@ document.addEventListener("DOMContentLoaded", () => {
       showAnalyticsBar: true,
       allowedUrlPatterns: ["https://www.linkedin.com/jobs/*", "https://linkedin.com/jobs/*"],
       gradeThresholds: { A: 120, B: 80, C: 45 },
-      llmConfig: { provider: "github", endpoint: "", apiKey: "", model: "", enabled: false }
+      llmConfig: { provider: "github", endpoint: "", apiKey: "", model: "", enabled: false },
+      resumeMatchLastEvaluation: null,
     },
     scanHistory: [],
-    lastAnalysis: null
+    lastAnalysis: null,
+    resumeText: "",
+    resumeFileName: ""
   };
 
   function uid() {
@@ -157,6 +166,77 @@ document.addEventListener("DOMContentLoaded", () => {
       added += 1;
     });
     return added;
+  }
+
+  function addCategorizedKeywords(items, fallbackGroupName, fallbackGroupWeight, keywordWeight) {
+    const summary = {};
+    (items || []).forEach((item) => {
+      const keyword = sanitizeKeyword(item && item.keyword);
+      if (!keyword) {
+        return;
+      }
+      const requestedGroup = String((item && item.group) || "").trim();
+      const resolvedName = requestedGroup || fallbackGroupName;
+      const existingGroup = getGroupByName(resolvedName);
+      const targetGroupName = existingGroup ? existingGroup.name : resolvedName;
+      const targetWeight = existingGroup ? existingGroup.weight : fallbackGroupWeight;
+      const added = addKeywordsToGroup(targetGroupName, targetWeight, [keyword], keywordWeight);
+      if (added) {
+        summary[targetGroupName] = (summary[targetGroupName] || 0) + added;
+      }
+    });
+    return summary;
+  }
+
+  function extractPdfTextFallback(arrayBuffer) {
+    const decoder = new TextDecoder("latin1");
+    const raw = decoder.decode(arrayBuffer);
+
+    const streamChunks = [];
+    const streamRegex = /stream([\s\S]*?)endstream/g;
+    let streamMatch;
+    while ((streamMatch = streamRegex.exec(raw)) !== null) {
+      streamChunks.push(streamMatch[1]);
+    }
+
+    const source = streamChunks.length ? streamChunks.join("\n") : raw;
+    const pieces = [];
+    const textRegex = /\(([^()]{2,300})\)/g;
+    let match;
+    while ((match = textRegex.exec(source)) !== null) {
+      const cleaned = match[1]
+        .replace(/\\n/g, " ")
+        .replace(/\\r/g, " ")
+        .replace(/\\t/g, " ")
+        .replace(/\\\(/g, "(")
+        .replace(/\\\)/g, ")")
+        .replace(/\\\\/g, "\\")
+        .replace(/\s+/g, " ")
+        .trim();
+      if (cleaned.length > 2) {
+        pieces.push(cleaned);
+      }
+    }
+
+    const combined = pieces.join(" ").replace(/\s+/g, " ").trim();
+    if (combined.length >= 200) {
+      return combined;
+    }
+
+    return raw
+      .replace(/[^\x20-\x7E\n]/g, " ")
+      .replace(/\s+/g, " ")
+      .trim()
+      .slice(0, 20000);
+  }
+
+  async function extractResumeTextFromFile(file) {
+    const lower = String(file && file.name || "").toLowerCase();
+    if (lower.endsWith(".pdf")) {
+      const buffer = await file.arrayBuffer();
+      return extractPdfTextFallback(buffer);
+    }
+    return await file.text();
   }
 
   function hydrateProviderControls(provider, overwriteFields) {
@@ -296,6 +376,13 @@ document.addEventListener("DOMContentLoaded", () => {
     if (ui.llmModel.value) {
       ui.llmModelPreset.value = ui.llmModel.value;
     }
+    if (state.resumeFileName) {
+      ui.resumeFileName.textContent = `Loaded: ${state.resumeFileName}`;
+    }
+    const lastEval = state.settings.resumeMatchLastEvaluation;
+    if (lastEval && Number.isFinite(lastEval.scorePercent)) {
+      ui.resumeLlmOutput.textContent = `Last match: ${lastEval.scorePercent}% for ${lastEval.title || "current job"}. ${lastEval.summary || ""}`.trim();
+    }
   }
 
   function render() {
@@ -412,6 +499,83 @@ document.addEventListener("DOMContentLoaded", () => {
     saveAll();
   }
 
+  async function loadResumeFromPicker(file) {
+    if (!file) {
+      return;
+    }
+    ui.resumeLlmOutput.textContent = "Parsing resume...";
+    try {
+      const parsed = await extractResumeTextFromFile(file);
+      const cleaned = String(parsed || "").replace(/\s+/g, " ").trim();
+      if (cleaned.length < 120) {
+        ui.resumeLlmOutput.textContent = "Could not extract enough text from this file. Try another PDF/text file.";
+        return;
+      }
+      state.resumeText = cleaned.slice(0, 30000);
+      state.resumeFileName = file.name;
+      ui.resumeFileName.textContent = `Loaded: ${file.name}`;
+      ui.resumeLlmOutput.textContent = "Resume loaded. You can now run manual match evaluation or generate keywords.";
+    } catch {
+      ui.resumeLlmOutput.textContent = "Failed to parse resume file.";
+    }
+  }
+
+  function runResumeMatchEvaluation() {
+    if (!state.resumeText) {
+      ui.resumeLlmOutput.textContent = "Please choose and load a resume first.";
+      return;
+    }
+    ui.resumeLlmOutput.textContent = "Evaluating match against current page...";
+    chrome.runtime.sendMessage({ action: "evaluateResumeMatchFromActiveTab", resumeText: state.resumeText }, (response) => {
+      if (!response || !response.ok) {
+        ui.resumeLlmOutput.textContent = (response && response.error) || "Resume match evaluation failed.";
+        return;
+      }
+      const matched = Array.isArray(response.matchedKeywords) ? response.matchedKeywords.slice(0, 8).join(", ") : "";
+      const missing = Array.isArray(response.missingKeywords) ? response.missingKeywords.slice(0, 8).join(", ") : "";
+      ui.resumeLlmOutput.textContent = [
+        `Resume match: ${response.scorePercent}%`,
+        response.summary || "",
+        matched ? `Matched: ${matched}` : "",
+        missing ? `Missing: ${missing}` : ""
+      ].filter(Boolean).join(" | ");
+
+      state.settings.resumeMatchLastEvaluation = {
+        scorePercent: response.scorePercent,
+        summary: response.summary || "",
+        updatedAt: Date.now()
+      };
+    });
+  }
+
+  function generateKeywordsFromResume() {
+    if (!state.resumeText) {
+      ui.resumeLlmOutput.textContent = "Please choose and load a resume first.";
+      return;
+    }
+
+    ui.resumeLlmOutput.textContent = "Generating grouped keywords from resume...";
+    chrome.runtime.sendMessage({ action: "buildKeywordsFromResume", resumeText: state.resumeText }, (response) => {
+      if (!response || !response.ok) {
+        ui.resumeLlmOutput.textContent = (response && response.error) || "Could not generate keywords from resume.";
+        return;
+      }
+
+      const summary = addCategorizedKeywords(
+        response.items || [],
+        ui.groupInput.value.trim() || "Resume Profile",
+        parseFloat(ui.groupWeightInput.value) || 1.8,
+        parseFloat(ui.keywordWeightInput.value) || 1.2
+      );
+      const totalAdded = Object.values(summary).reduce((sum, count) => sum + count, 0);
+      saveAll();
+      render();
+      ui.resumeLlmOutput.textContent = totalAdded
+        ? `Added ${totalAdded} keyword(s) from resume. ${Object.entries(summary).map(([name, count]) => `${name}: ${count}`).join(" | ")}`
+        : "No new resume-based keywords were added.";
+    });
+  }
+
   function resetAllData() {
     const confirmMessage = "All stored settings will be removed. Are you sure? Unless you have a backup, this cannot be reversed.";
     if (!window.confirm(confirmMessage)) {
@@ -468,6 +632,21 @@ document.addEventListener("DOMContentLoaded", () => {
     ui.llmModelPreset.addEventListener("change", () => {
       ui.llmModel.value = ui.llmModelPreset.value;
     });
+
+    ui.chooseResume.addEventListener("click", () => {
+      ui.resumeFileInput.value = "";
+      ui.resumeFileInput.click();
+    });
+
+    ui.resumeFileInput.addEventListener("change", (event) => {
+      const file = event.target.files && event.target.files[0];
+      if (file) {
+        loadResumeFromPicker(file);
+      }
+    });
+
+    ui.evaluateResumeMatch.addEventListener("click", runResumeMatchEvaluation);
+    ui.buildResumeKeywords.addEventListener("click", generateKeywordsFromResume);
 
     ui.exportJson.addEventListener("click", () => {
       const blob = new Blob([JSON.stringify({ groups: state.groups, phrases: state.phrases, settings: state.settings }, null, 2)], { type: "application/json" });

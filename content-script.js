@@ -149,6 +149,18 @@
         padding: 3px 8px;
         border-radius: 999px;
       }
+      #${BAR_ID} .ks-progress {
+        width: 140px;
+        height: 8px;
+        border-radius: 999px;
+        background: rgba(255,255,255,0.16);
+        overflow: hidden;
+      }
+      #${BAR_ID} .ks-progress > span {
+        display: block;
+        height: 100%;
+        background: linear-gradient(90deg, #29c36a, #5ee3a1);
+      }
       #${BAR_ID} .ks-btns {
         display: flex;
         gap: 6px;
@@ -253,9 +265,22 @@
       return;
     }
 
+    // First, re-apply the new offset to elements we already shifted earlier.
+    // This prevents stale large gaps when the analytics bar collapses.
+    const alreadyShifted = document.querySelectorAll(`[${TOP_SHIFT_ATTR}='1']`);
+    alreadyShifted.forEach((el) => {
+      const originalTop = parseFloat(el.getAttribute(TOP_ORIGINAL_ATTR) || "0");
+      const nextTop = originalTop + offset;
+      el.style.top = `${nextTop}px`;
+    });
+
     const candidates = document.querySelectorAll("header, nav, div, section, aside");
     candidates.forEach((el) => {
       if (!shouldShiftElement(el)) {
+        return;
+      }
+
+      if (el.getAttribute(TOP_SHIFT_ATTR) === "1") {
         return;
       }
 
@@ -411,6 +436,7 @@
       statline.innerHTML = `
         <span class="ks-chip">Score: ${analysis.totalScore}</span>
         <span class="ks-chip">Grade: ${analysis.grade}</span>
+        ${Number.isFinite(analysis.resumeMatchPercent) ? `<span class="ks-chip">Resume Match: ${analysis.resumeMatchPercent}%</span><span class="ks-progress" title="Resume match ${analysis.resumeMatchPercent}%"><span style="width:${Math.max(0, Math.min(100, analysis.resumeMatchPercent))}%"></span></span>` : ""}
         <span class="ks-chip">URL: ${location.hostname.replace(/^www\./, "")}</span>
       `;
 

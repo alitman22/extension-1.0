@@ -70,6 +70,7 @@ const DEFAULT_SETTINGS = {
     model: "",
     enabled: false
   },
+  resumeMatchLastEvaluation: null,
   resumeDefaultsLoaded: false
 };
 
@@ -509,12 +510,43 @@ async function callLLM(llmConfig, pageText, currentGroups) {
     "Extract technical job keywords for IT/DevOps/Linux roles.",
     "Assign each keyword to the most relevant existing group.",
     `Allowed groups: ${groupNames}`,
-    "Return strict JSON with schema: {\"items\": [{\"keyword\": \"term1\", \"group\": \"Cloud & Platform\"}]}.",
+    "Return strict JSON with schema: {\"items\": [{\"keyword\": \"term1\", \"group\": \"Cloud & Platform\"}] }.",
     "Avoid generic words, soft-skills-only words, and duplicates.",
     `Existing keywords: ${existing}`,
     "Page text:",
     pageText.slice(0, 12000)
   ].join("\n");
+
+  const llmTextResult = await callLLMRawText(
+    llmConfig,
+    "You are a strict technical keyword extractor.",
+    prompt
+  );
+  if (!llmTextResult.ok) {
+    return llmTextResult;
+  }
+
+  const categorized = parseCategorizedLLMOutput(llmTextResult.raw, currentGroups)
+    .filter((item) => item.keyword.length > 2)
+    .slice(0, 30);
+
+  const seen = new Set();
+  const deduped = categorized.filter((item) => {
+    const key = `${item.group}::${item.keyword}`;
+    if (seen.has(key)) {
+      return false;
+    }
+    seen.add(key);
+    return true;
+  });
+
+  return { ok: true, items: deduped };
+}
+
+async function callLLMRawText(llmConfig, systemPrompt, userPrompt) {
+  if (!llmConfig || !llmConfig.endpoint || !llmConfig.apiKey || !llmConfig.model) {
+    return { ok: false, error: "Missing LLM endpoint/apiKey/model settings." };
+  }
 
   const provider = llmConfig.provider || "openai-compatible";
   let response;
@@ -529,8 +561,8 @@ async function callLLM(llmConfig, pageText, currentGroups) {
       body: JSON.stringify({
         model: llmConfig.model,
         messages: [
-          { role: "system", content: "You are a strict technical keyword extractor." },
-          { role: "user", content: prompt }
+          { role: "system", content: systemPrompt },
+          { role: "user", content: userPrompt }
         ],
         temperature: 0.2
       })
@@ -545,12 +577,12 @@ async function callLLM(llmConfig, pageText, currentGroups) {
       },
       body: JSON.stringify({
         systemInstruction: {
-          parts: [{ text: "You are a strict technical keyword extractor." }]
+          parts: [{ text: systemPrompt }]
         },
         contents: [
           {
             role: "user",
-            parts: [{ text: prompt }]
+            parts: [{ text: userPrompt }]
           }
         ],
         generationConfig: {
@@ -568,8 +600,8 @@ async function callLLM(llmConfig, pageText, currentGroups) {
       body: JSON.stringify({
         model: llmConfig.model,
         messages: [
-          { role: "system", content: "You are a strict technical keyword extractor." },
-          { role: "user", content: prompt }
+          { role: "system", content: systemPrompt },
+          { role: "user", content: userPrompt }
         ],
         temperature: 0.2
       })
@@ -587,12 +619,86 @@ async function callLLM(llmConfig, pageText, currentGroups) {
   } else {
     raw = payload.choices && payload.choices[0] && payload.choices[0].message ? payload.choices[0].message.content : "";
   }
-  const categorized = parseCategorizedLLMOutput(raw, currentGroups)
+  return { ok: true, raw };
+}
+
+function sanitizePercent(value) {
+  const num = Number(value);
+  if (!Number.isFinite(num)) {
+    return null;
+  }
+  return Math.max(0, Math.min(100, Math.round(num)));
+}
+
+async function evaluateResumeMatch(llmConfig, resumeText, jobText) {
+  const prompt = [
+    "Evaluate how well this resume matches this job description.",
+    "Return strict JSON only with schema:",
+    "{\"scorePercent\": 0-100, \"summary\": \"...\", \"matchedKeywords\": [\"...\"], \"missingKeywords\": [\"...\"]}",
+    "Keep summary concise (max 2 sentences).",
+    "Resume:",
+    String(resumeText || "").slice(0, 14000),
+    "Job description:",
+    String(jobText || "").slice(0, 14000)
+  ].join("\n");
+
+  const llmResult = await callLLMRawText(
+    llmConfig,
+    "You are a strict resume-to-job evaluator that outputs valid JSON only.",
+    prompt
+  );
+  if (!llmResult.ok) {
+    return llmResult;
+  }
+
+  const parsed = tryParseJsonObject(llmResult.raw);
+  if (!parsed) {
+    return { ok: false, error: "Could not parse LLM response for resume match score." };
+  }
+
+  const scorePercent = sanitizePercent(parsed.scorePercent);
+  if (scorePercent === null) {
+    return { ok: false, error: "LLM did not return a valid scorePercent." };
+  }
+
+  return {
+    ok: true,
+    scorePercent,
+    summary: String(parsed.summary || "").trim(),
+    matchedKeywords: Array.isArray(parsed.matchedKeywords) ? parsed.matchedKeywords.slice(0, 20).map((item) => String(item)) : [],
+    missingKeywords: Array.isArray(parsed.missingKeywords) ? parsed.missingKeywords.slice(0, 20).map((item) => String(item)) : []
+  };
+}
+
+async function buildKeywordsFromResume(llmConfig, resumeText, currentGroups) {
+  const existing = Array.from(getExistingKeywordSet(currentGroups)).slice(0, 200).join(", ");
+  const groupNames = currentGroups.map((group) => group.name).join(", ");
+  const prompt = [
+    "Extract practical technical keywords from this resume and assign each to the best existing group.",
+    "If no suitable group exists, suggest a concise new group name.",
+    `Existing groups: ${groupNames}`,
+    "Return strict JSON only with schema: {\"items\":[{\"keyword\":\"...\",\"group\":\"...\"}] }",
+    "Avoid duplicates and generic soft skills.",
+    `Existing keywords: ${existing}`,
+    "Resume:",
+    String(resumeText || "").slice(0, 14000)
+  ].join("\n");
+
+  const llmResult = await callLLMRawText(
+    llmConfig,
+    "You are a strict technical keyword extractor that outputs valid JSON only.",
+    prompt
+  );
+  if (!llmResult.ok) {
+    return llmResult;
+  }
+
+  const parsed = parseCategorizedLLMOutput(llmResult.raw, currentGroups)
     .filter((item) => item.keyword.length > 2)
-    .slice(0, 30);
+    .slice(0, 50);
 
   const seen = new Set();
-  const deduped = categorized.filter((item) => {
+  const items = parsed.filter((item) => {
     const key = `${item.group}::${item.keyword}`;
     if (seen.has(key)) {
       return false;
@@ -601,7 +707,7 @@ async function callLLM(llmConfig, pageText, currentGroups) {
     return true;
   });
 
-  return { ok: true, items: deduped };
+  return { ok: true, items };
 }
 
 const notifiedUrls = new Set();
@@ -631,6 +737,10 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 
       if (request.action === "analyzePage") {
         const analysis = scoreText(request.text || "", state);
+        const lastResumeEval = state.settings && state.settings.resumeMatchLastEvaluation;
+        if (lastResumeEval && request.url && lastResumeEval.url === request.url && Number.isFinite(lastResumeEval.scorePercent)) {
+          analysis.resumeMatchPercent = lastResumeEval.scorePercent;
+        }
         const tabId = sender.tab && sender.tab.id;
         await applyBadge(tabId, analysis, state.settings);
         const history = await recordHistory(request, analysis, state.settings);
@@ -680,6 +790,72 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
           return;
         }
         const result = await callLLM(state.settings.llmConfig, tabData.text || "", state.groups);
+        safeSend(sendResponse, result);
+        return;
+      }
+
+      if (request.action === "evaluateResumeMatchFromActiveTab") {
+        const resumeText = String((request && request.resumeText) || "").trim();
+        if (!resumeText) {
+          safeSend(sendResponse, { ok: false, error: "Please upload and parse a resume first." });
+          return;
+        }
+
+        const tabData = await getActiveTabText();
+        if (!tabData) {
+          safeSend(sendResponse, { ok: false, error: "Could not access active tab." });
+          return;
+        }
+        if (!matchesAllowedUrl(tabData.url, state.settings.allowedUrlPatterns)) {
+          safeSend(sendResponse, { ok: false, error: "This URL is not enabled. Add it in Settings > Active URLs." });
+          return;
+        }
+
+        const evalResult = await evaluateResumeMatch(state.settings.llmConfig, resumeText, tabData.text || "");
+        if (!evalResult.ok) {
+          safeSend(sendResponse, evalResult);
+          return;
+        }
+
+        const updatedSettings = {
+          ...state.settings,
+          resumeMatchLastEvaluation: {
+            url: tabData.url,
+            title: tabData.title,
+            scorePercent: evalResult.scorePercent,
+            summary: evalResult.summary,
+            updatedAt: Date.now()
+          }
+        };
+
+        await chrome.storage.sync.set({ settings: updatedSettings });
+
+        if (tabData.tabId) {
+          try {
+            await chrome.tabs.sendMessage(tabData.tabId, { action: "forceRescan" });
+          } catch {
+            // Content script may not be attached in this tab context.
+          }
+        }
+
+        safeSend(sendResponse, {
+          ok: true,
+          scorePercent: evalResult.scorePercent,
+          summary: evalResult.summary,
+          matchedKeywords: evalResult.matchedKeywords,
+          missingKeywords: evalResult.missingKeywords
+        });
+        return;
+      }
+
+      if (request.action === "buildKeywordsFromResume") {
+        const resumeText = String((request && request.resumeText) || "").trim();
+        if (!resumeText) {
+          safeSend(sendResponse, { ok: false, error: "Please upload and parse a resume first." });
+          return;
+        }
+
+        const result = await buildKeywordsFromResume(state.settings.llmConfig, resumeText, state.groups);
         safeSend(sendResponse, result);
         return;
       }
