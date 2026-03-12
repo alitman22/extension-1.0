@@ -10,16 +10,13 @@ document.addEventListener("DOMContentLoaded", () => {
     groupsList: document.getElementById("groups-list"),
     badgeMode: document.getElementById("badge-mode"),
     alertThreshold: document.getElementById("alert-threshold"),
-    gradeA: document.getElementById("grade-a"),
-    gradeB: document.getElementById("grade-b"),
-    gradeC: document.getElementById("grade-c"),
     showBar: document.getElementById("show-bar"),
-    saveSettings: document.getElementById("save-settings"),
     rescore: document.getElementById("rescore"),
     llmSuggest: document.getElementById("llm-suggest"),
     actionOutput: document.getElementById("action-output"),
-    scoreCards: document.getElementById("score-cards"),
-    openSettings: document.getElementById("open-settings")
+    openSettings: document.getElementById("open-settings"),
+    openSettings2: document.getElementById("open-settings-2"),
+    autosaveBadge: document.getElementById("autosave-badge")
   };
 
   const state = {
@@ -127,30 +124,107 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   }
 
+  function showAutoSaveBadge() {
+    if (!ui.autosaveBadge) { return; }
+    ui.autosaveBadge.classList.remove("hidden");
+    clearTimeout(ui._autosaveHideTimer);
+    ui._autosaveHideTimer = setTimeout(() => ui.autosaveBadge.classList.add("hidden"), 2200);
+  }
+
+  let autoSaveTimer = null;
+  function scheduleAutoSave() {
+    clearTimeout(autoSaveTimer);
+    autoSaveTimer = setTimeout(() => {
+      state.settings.badgeMode = ui.badgeMode.value;
+      state.settings.alertThreshold = parseInt(ui.alertThreshold.value, 10) || 80;
+      state.settings.showAnalyticsBar = ui.showBar.checked;
+      saveAll();
+      showAutoSaveBadge();
+    }, 700);
+  }
+
   function renderInsights() {
     const analysis = state.lastAnalysis;
+    const arc = document.getElementById("score-arc");
+    const ringScore = document.getElementById("ring-score");
+    const gradeBadge = document.getElementById("grade-badge");
+    const skillsChips = document.getElementById("skills-chips");
+    const signalsList = document.getElementById("signals-list");
+    const urlTag = document.getElementById("url-tag");
+    const resumePct = document.getElementById("resume-pct");
+    const resumeBar = document.getElementById("resume-pct-bar");
+    const resumeLabel = document.getElementById("resume-pct-label");
+
     if (!analysis) {
-      ui.scoreCards.innerHTML = "<div class='card full'>No scan yet. Open a LinkedIn job page and rescan.</div>";
+      if (arc) { arc.style.strokeDashoffset = "314"; }
+      if (ringScore) { ringScore.textContent = "—"; }
+      if (gradeBadge) { gradeBadge.textContent = "—"; gradeBadge.className = "grade-badge grade-none"; }
+      if (skillsChips) { skillsChips.innerHTML = "<span class='empty-hint'>Scan a job page to see matched keywords</span>"; }
+      if (signalsList) { signalsList.innerHTML = "<span class='empty-hint'>No signals detected yet</span>"; }
+      if (urlTag) { urlTag.textContent = "—"; }
+      if (resumePct) { resumePct.classList.add("hidden"); }
       return;
     }
-    const signals = Object.entries(analysis.phraseByCategory || {})
-      .map(([key, value]) => `${key}: ${Math.round(value)}`)
-      .join(" | ") || "No key phrases detected";
-    ui.scoreCards.innerHTML = `
-      <div class="card">Score <strong>${analysis.totalScore || 0}</strong></div>
-      <div class="card">Grade <strong>${analysis.grade || "-"}</strong></div>
-      <div class="card full">Signals <strong>${signals}</strong></div>
-    `;
+
+    // Score ring
+    const score = analysis.totalScore || 0;
+    const maxScore = (state.settings.gradeThresholds && state.settings.gradeThresholds.A) || 120;
+    const pct = Math.min(100, Math.round(score / maxScore * 100));
+    const circumference = 314;
+    if (arc) { arc.style.strokeDashoffset = String(circumference - (circumference * pct / 100)); }
+    if (ringScore) { ringScore.textContent = score; }
+
+    // Grade
+    const grade = analysis.grade || "D";
+    if (gradeBadge) {
+      gradeBadge.textContent = grade;
+      gradeBadge.className = `grade-badge grade-${grade}`;
+    }
+
+    // URL
+    if (urlTag) {
+      try {
+        urlTag.textContent = analysis.url ? new URL(analysis.url).hostname.replace(/^www\./, "") : location.hostname.replace(/^www\./, "");
+      } catch { urlTag.textContent = "—"; }
+    }
+
+    // Resume match
+    if (Number.isFinite(analysis.resumeMatchPercent) && resumePct && resumeBar && resumeLabel) {
+      resumePct.classList.remove("hidden");
+      resumeBar.style.width = `${Math.max(0, Math.min(100, analysis.resumeMatchPercent))}%`;
+      resumeLabel.textContent = `${analysis.resumeMatchPercent}% resume match`;
+    } else if (resumePct) {
+      resumePct.classList.add("hidden");
+    }
+
+    // Matched Skills chips
+    const topKeywords = [];
+    (analysis.groupBreakdown || []).forEach((group) => {
+      (group.keywords || []).slice().sort((a, b) => b.score - a.score).slice(0, 3).forEach((kw) => {
+        topKeywords.push(kw.keyword);
+      });
+    });
+    if (skillsChips) {
+      skillsChips.innerHTML = topKeywords.length
+        ? topKeywords.slice(0, 12).map((kw) => `<span class="skill-chip">${kw}</span>`).join("")
+        : "<span class='empty-hint'>No keyword matches found</span>";
+    }
+
+    // Flagged Signals
+    const phrases = analysis.phraseBreakdown || [];
+    if (signalsList) {
+      signalsList.innerHTML = phrases.length
+        ? phrases.slice(0, 6).map((p) =>
+            `<div class="signal-item"><div class="signal-dot"></div><span class="signal-label">${p.phrase}</span><span class="signal-score">${Math.round(p.score)}</span></div>`
+          ).join("")
+        : "<span class='empty-hint'>No phrase signals detected</span>";
+    }
   }
 
   function renderSettings() {
     ui.badgeMode.value = state.settings.badgeMode || "score";
     ui.alertThreshold.value = state.settings.alertThreshold || 80;
     ui.showBar.checked = state.settings.showAnalyticsBar !== false;
-    const thresholds = state.settings.gradeThresholds || { A: 120, B: 80, C: 45 };
-    ui.gradeA.value = thresholds.A || 120;
-    ui.gradeB.value = thresholds.B || 80;
-    ui.gradeC.value = thresholds.C || 45;
   }
 
   function render() {
@@ -187,17 +261,9 @@ document.addEventListener("DOMContentLoaded", () => {
       });
     });
 
-    ui.saveSettings.addEventListener("click", () => {
-      state.settings.badgeMode = ui.badgeMode.value;
-      state.settings.alertThreshold = parseInt(ui.alertThreshold.value, 10) || 80;
-      state.settings.showAnalyticsBar = ui.showBar.checked;
-      state.settings.gradeThresholds = {
-        A: parseInt(ui.gradeA.value, 10) || 120,
-        B: parseInt(ui.gradeB.value, 10) || 80,
-        C: parseInt(ui.gradeC.value, 10) || 45
-      };
-      saveAll();
-      ui.actionOutput.textContent = "Settings saved.";
+    // Auto-save quick settings on any change
+    [ui.badgeMode, ui.alertThreshold, ui.showBar].forEach((el) => {
+      if (el) { el.addEventListener("change", scheduleAutoSave); }
     });
 
     ui.rescore.addEventListener("click", () => {
@@ -225,10 +291,9 @@ document.addEventListener("DOMContentLoaded", () => {
       });
     });
 
-    ui.openSettings.addEventListener("click", () => {
-      chrome.runtime.openOptionsPage();
-      window.close();
-    });
+    const openSettingsPage = () => { chrome.runtime.openOptionsPage(); window.close(); };
+    if (ui.openSettings)  { ui.openSettings.addEventListener("click", openSettingsPage); }
+    if (ui.openSettings2) { ui.openSettings2.addEventListener("click", openSettingsPage); }
   }
 
   chrome.runtime.sendMessage({ action: "getPopupState" }, (response) => {

@@ -102,6 +102,30 @@ document.addEventListener("DOMContentLoaded", () => {
     ui.saveStatus.textContent = message;
   }
 
+  let autoSaveTimer = null;
+  function scheduleAutoSave() {
+    clearTimeout(autoSaveTimer);
+    autoSaveTimer = setTimeout(() => {
+      state.settings.badgeMode = ui.badgeMode.value;
+      state.settings.alertThreshold = parseInt(ui.alertThreshold.value, 10) || 80;
+      state.settings.showAnalyticsBar = ui.showBar.checked;
+      state.settings.allowedUrlPatterns = parsePatterns(ui.activeUrlPatterns.value);
+      state.settings.gradeThresholds = {
+        A: parseInt(ui.gradeA.value, 10) || 120,
+        B: parseInt(ui.gradeB.value, 10) || 80,
+        C: parseInt(ui.gradeC.value, 10) || 45
+      };
+      state.settings.llmConfig = {
+        provider: ui.llmProvider.value,
+        endpoint: ui.llmEndpoint.value.trim(),
+        apiKey: ui.llmApiKey.value.trim(),
+        model: ui.llmModel.value.trim(),
+        enabled: Boolean(ui.llmEndpoint.value.trim() && ui.llmApiKey.value.trim() && ui.llmModel.value.trim())
+      };
+      saveAll();
+    }, 900);
+  }
+
   function parsePatterns(raw) {
     return String(raw || "")
       .split(/\r?\n/g)
@@ -120,7 +144,9 @@ document.addEventListener("DOMContentLoaded", () => {
       }
     }, (response) => {
       if (response && response.ok) {
-        setStatus("Saved. Changes sync with Chrome storage.");
+        setStatus("✓ Auto-saved");
+        clearTimeout(ui._statusClearTimer);
+        ui._statusClearTimer = setTimeout(() => setStatus(""), 2500);
       }
     });
   }
@@ -616,6 +642,16 @@ document.addEventListener("DOMContentLoaded", () => {
     ui.addPhraseButton.addEventListener("click", addOrUpdatePhrase);
     ui.saveDisplaySettings.addEventListener("click", saveDisplaySettings);
     ui.saveLlmSettings.addEventListener("click", saveLlmSettings);
+
+    // Auto-save: fire whenever any settings field is changed
+    [
+      ui.badgeMode, ui.alertThreshold, ui.showBar, ui.activeUrlPatterns,
+      ui.gradeA, ui.gradeB, ui.gradeC
+    ].forEach((el) => { if (el) { el.addEventListener("change", scheduleAutoSave); } });
+    [ui.alertThreshold, ui.activeUrlPatterns, ui.gradeA, ui.gradeB, ui.gradeC]
+      .forEach((el) => { if (el) { el.addEventListener("input", scheduleAutoSave); } });
+    [ui.llmEndpoint, ui.llmApiKey, ui.llmModel]
+      .forEach((el) => { if (el) { el.addEventListener("input", scheduleAutoSave); } });
 
     ui.importKeywordsFile.addEventListener("change", (event) => {
       const file = event.target.files && event.target.files[0];

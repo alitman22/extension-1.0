@@ -3,88 +3,136 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Keyword Scorer</title>
+  <title>Job Match Radar</title>
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
   <div id="app">
-    <h1>Job Match Radar</h1>
-    <p class="subtitle">Quick actions for the current job page. For provider setup, phrase tuning, backup, and deeper controls, open the settings page.</p>
 
-    <section class="panel">
-      <h2>Quick Keyword Edit</h2>
-      <div class="row">
-        <input type="text" id="group-input" placeholder="Group name (e.g. Backend)">
-        <input type="number" id="group-weight-input" placeholder="Group weight" step="0.1" value="1">
+    <!-- Header -->
+    <header class="app-header">
+      <div class="header-brand">
+        <span class="brand-pulse"></span>
+        <span class="brand-name">Job Match Radar</span>
       </div>
-      <div class="row">
-        <input type="text" id="keyword-input" placeholder="Keywords (comma/new line supported)">
-        <input type="number" id="keyword-weight-input" placeholder="Keyword weight" step="0.1" value="1">
+      <div class="header-right">
+        <span id="autosave-badge" class="autosave-badge hidden">✓ Saved</span>
+        <button id="open-settings" class="icon-btn" title="Full Settings">⚙</button>
       </div>
-      <div class="actions">
-        <button id="add-keyword">Add / Update</button>
-        <button id="scan-tech-page">Scan Page Terms</button>
-      </div>
-      <div id="scan-tech-output" class="hint-box"></div>
-      <ul id="groups-list"></ul>
-    </section>
+    </header>
 
-    <section class="panel">
-      <h2>Page Actions</h2>
-      <div class="actions">
-        <button id="rescore" class="btn-action">Rescan Current Page</button>
-        <button id="llm-suggest" class="btn-action">Suggest Keywords (LLM)</button>
+    <!-- Score Hero -->
+    <div class="hero-card">
+      <div class="score-ring-wrap">
+        <svg viewBox="0 0 120 120" class="score-ring">
+          <defs>
+            <linearGradient id="ringGrad" x1="0%" y1="100%" x2="100%" y2="0%">
+              <stop offset="0%" stop-color="#1fdf6f"/>
+              <stop offset="100%" stop-color="#5ee3c0"/>
+            </linearGradient>
+          </defs>
+          <circle cx="60" cy="60" r="50" fill="none" stroke="rgba(255,255,255,0.07)" stroke-width="9"/>
+          <circle id="score-arc" cx="60" cy="60" r="50" fill="none" stroke="url(#ringGrad)"
+                  stroke-width="9" stroke-dasharray="314" stroke-dashoffset="314"
+                  stroke-linecap="round" transform="rotate(-90 60 60)" class="score-arc-circle"/>
+        </svg>
+        <div class="ring-center">
+          <div id="ring-score" class="ring-score">—</div>
+          <div class="ring-label">Score</div>
+        </div>
       </div>
-      <div id="action-output" class="hint-box"></div>
-    </section>
+      <div class="hero-meta">
+        <div id="grade-badge" class="grade-badge grade-none">—</div>
+        <div class="grade-label">Grade</div>
+        <div id="resume-pct" class="resume-pct hidden">
+          <div class="resume-bar-wrap">
+            <div id="resume-pct-bar" class="resume-bar" style="width:0%"></div>
+          </div>
+          <span id="resume-pct-label" class="resume-pct-label">0% match</span>
+        </div>
+        <div id="url-tag" class="url-tag">—</div>
+      </div>
+    </div>
 
-    <section class="panel">
-      <h2>Quick Thresholds & Display</h2>
-      <div class="row">
-        <label for="alert-threshold">Alert Threshold</label>
-        <input type="number" id="alert-threshold" min="1" step="1" value="80">
+    <!-- Matched Skills -->
+    <div class="info-card">
+      <div class="card-header">
+        <span class="card-icon green-icon">◈</span>
+        <span class="card-title">Matched Skills</span>
       </div>
-      <div class="row">
-        <label for="grade-a">Grade A from</label>
-        <input type="number" id="grade-a" step="1" value="120">
+      <div id="skills-chips" class="chips-grid">
+        <span class="empty-hint">Scan a job page to see matched keywords</span>
       </div>
-      <div class="row">
-        <label for="grade-b">Grade B from</label>
-        <input type="number" id="grade-b" step="1" value="80">
-      </div>
-      <div class="row">
-        <label for="grade-c">Grade C from</label>
-        <input type="number" id="grade-c" step="1" value="45">
-      </div>
-      <div class="row">
-        <label for="badge-mode">Badge Display</label>
-        <select id="badge-mode">
-          <option value="score">Score</option>
-          <option value="grade">Grade</option>
-          <option value="off">Off</option>
-        </select>
-      </div>
-      <div class="row checkbox-row">
-        <input type="checkbox" id="show-bar">
-        <label for="show-bar">Show Analytics Bar</label>
-      </div>
-      <div class="actions">
-        <button id="save-settings">Save Quick Settings</button>
-      </div>
-    </section>
+    </div>
 
-    <section class="panel">
-      <h2>Current Snapshot</h2>
-      <div id="score-cards" class="score-cards"></div>
-    </section>
-
-    <section class="panel">
-      <h2>Need More Controls?</h2>
-      <p class="hint-inline">LLM provider setup, phrase tuning, import/export, grade thresholds, and deeper keyword management are available on the settings page.</p>
-      <div class="actions">
-        <button id="open-settings">Open Full Settings</button>
+    <!-- Flagged Signals -->
+    <div class="info-card">
+      <div class="card-header">
+        <span class="card-icon blue-icon">⚑</span>
+        <span class="card-title">Flagged Signals</span>
       </div>
-    </section>
+      <div id="signals-list" class="signals-grid">
+        <span class="empty-hint">No signals detected yet</span>
+      </div>
+    </div>
+
+    <!-- Page Action Row -->
+    <div class="actions-row">
+      <button id="rescore" class="btn-action-main">⟳ Rescan</button>
+      <button id="llm-suggest" class="btn-action-sec">✦ LLM Keywords</button>
+      <button id="open-settings-2" class="btn-action-sec">⚙ Settings</button>
+    </div>
+    <div id="action-output" class="feedback-bar hidden"></div>
+
+    <!-- Quick Add Keyword -->
+    <details class="expand-card">
+      <summary class="expand-summary">
+        <span class="card-icon">✦</span> Quick Add Keyword
+      </summary>
+      <div class="expand-body">
+        <div class="field-row">
+          <input type="text" id="group-input" placeholder="Group name" class="field">
+          <input type="number" id="group-weight-input" placeholder="W" step="0.1" value="1.5" class="field short-field">
+        </div>
+        <div class="field-row">
+          <input type="text" id="keyword-input" placeholder="Keywords (comma separated)" class="field">
+          <input type="number" id="keyword-weight-input" placeholder="W" step="0.1" value="1.2" class="field short-field">
+        </div>
+        <div class="btn-row">
+          <button id="add-keyword" class="btn-primary">+ Add</button>
+          <button id="scan-tech-page" class="btn-secondary">Scan Page</button>
+        </div>
+        <div id="scan-tech-output" class="feedback-bar"></div>
+        <ul id="groups-list" class="groups-mini"></ul>
+      </div>
+    </details>
+
+    <!-- Quick Settings -->
+    <details class="expand-card">
+      <summary class="expand-summary">
+        <span class="card-icon">⚙</span> Quick Settings
+        <span class="autosave-note">auto-saves</span>
+      </summary>
+      <div class="expand-body">
+        <div class="setting-row">
+          <label>Alert Threshold</label>
+          <input type="number" id="alert-threshold" min="1" step="1" value="80" class="field short-field">
+        </div>
+        <div class="setting-row">
+          <label>Badge Display</label>
+          <select id="badge-mode" class="field short-field">
+            <option value="score">Score</option>
+            <option value="grade">Grade</option>
+            <option value="off">Off</option>
+          </select>
+        </div>
+        <div class="setting-row checkbox-row">
+          <input type="checkbox" id="show-bar">
+          <label for="show-bar">Show Analytics Bar</label>
+        </div>
+      </div>
+    </details>
+
   </div>
   <script src="popup.js"></script>
 </body>
