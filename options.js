@@ -13,7 +13,7 @@ document.addEventListener("DOMContentLoaded", () => {
       model: "",
       enabled: false
     },
-    resumeDefaultsLoaded: true
+    resumeDefaultsLoaded: false
   };
 
   const PROVIDER_PRESETS = {

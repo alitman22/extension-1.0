@@ -443,7 +443,8 @@ function scoreText(text, state) {
 async function getState() {
   const stored = await chrome.storage.sync.get(["groups", "phrases", "settings", "scanHistory", "lastAnalysis"]);
   const normalized = normalizeData(stored);
-  if (!normalized.settings.resumeDefaultsLoaded) {
+  const shouldSeedResumeDefaults = !normalized.settings.resumeDefaultsLoaded || !Array.isArray(normalized.groups) || !normalized.groups.length;
+  if (shouldSeedResumeDefaults) {
     normalized.groups = mergeResumeDefaultsIntoGroups(normalized.groups);
     normalized.settings.resumeDefaultsLoaded = true;
   }
